@@ -1,0 +1,90 @@
+library(caret)
+
+train_in <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', header=T)
+valid_in <- read.csv('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', header=T)
+dim(train_in)
+
+set.seed(10)
+inTrain <- createDataPartition(y=train_in$classe,p=0.7, list=FALSE) 
+train_in.train <- train_in[inTrain,]
+train_in.test <- train_in[-inTrain,]
+
+# remove variables with nearly zero variance
+nzv <- nearZeroVar(train_in.train)
+train_in.train <- train_in.train[, -nzv]
+train_in.test <- train_in.test[, -nzv]
+
+# remove variables that are almost always NA
+mostlyNA <- sapply(train_in.test, function(x) mean(is.na(x))) > 0.95
+train_in.train <- train_in.train[, mostlyNA==F]
+train_in.test <- train_in.test[, mostlyNA==F]
+
+# remove variables that don't make intuitive sense for prediction (X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp), which happen to be the first five variables
+trainData1 <- train_in.train[, -(1:5)]
+trainData2 <- train_in.test[, -(1:5)]
+
+#MODEL BUILDING
+#Random_Forest Model
+
+library(randomForest)
+library(e1071)
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modRF1 <- train(classe ~ ., data=trainData1, method="rf", trControl=controlRF)
+modRF1$finalModel
+
+## 
+## Call:
+##  randomForest(x = x, y = y, mtry = param$mtry) 
+##                Type of random forest: classification
+##                      Number of trees: 500
+## No. of variables tried at each split: 27
+## 
+##         OOB estimate of  error rate: 0.65%
+## Confusion matrix:
+##      A    B    C    D    E class.error
+## A 3902    3    0    0    1 0.001024066
+## B   23 2628    6    0    1 0.011286682
+## C    0   11 2379    6    0 0.007095159
+## D    0    0   23 2227    2 0.011101243
+## E    0    2    4    7 2512 0.005148515
+
+
+predictRF1 <- predict(modRF1, newdata=trainData2)
+cmrf <- confusionMatrix(predictRF1, trainData2$classe)
+cmrf
+## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1176    0    0    0    0
+##          B    0  799    0    0    0
+##          C    0    0  711    0    0
+##          D    0    0    0  679    0
+##          E    0    0    0    0  759
+## 
+## Overall Statistics
+##                                      
+##                Accuracy : 1          
+##                  95% CI : (0.9991, 1)
+##     No Information Rate : 0.2852     
+##     P-Value [Acc > NIR] : < 2.2e-16  
+##                                      
+##                   Kappa : 1          
+##  Mcnemar's Test P-Value : NA         
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            1.0000   1.0000   1.0000   1.0000    1.000
+## Specificity            1.0000   1.0000   1.0000   1.0000    1.000
+## Pos Pred Value         1.0000   1.0000   1.0000   1.0000    1.000
+## Neg Pred Value         1.0000   1.0000   1.0000   1.0000    1.000
+## Prevalence             0.2852   0.1937   0.1724   0.1646    0.184
+## Detection Rate         0.2852   0.1937   0.1724   0.1646    0.184
+## Detection Prevalence   0.2852   0.1937   0.1724   0.1646    0.184
+## Balanced Accuracy      1.0000   1.0000   1.0000   1.0000    1.000
+
+sum(cmrf$predRight)/nrow(cmrf)
+
+## [1] 0.988785
+
